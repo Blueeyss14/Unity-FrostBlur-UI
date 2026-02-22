@@ -1,0 +1,11 @@
+{
+    "name": "FrostBlurUI.Editor",
+    "references": [
+        "FrostBlurUI.Runtime"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "autoReferenced": true
+}
