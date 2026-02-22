@@ -107,9 +107,8 @@ Shader "FrostBlurUI/FrostBlurUI"
                 float2 p        = (IN.uv - 0.5) * rectSize;
                 float2 halfSize = rectSize * 0.5;
                 float  dist     = RoundedRectSDF(p, halfSize, _FCornerRadii);
-                float  aa       = fwidth(dist);
 
-                float fillAlpha = 1.0 - smoothstep(-aa, 0.0, dist);
+                float fillAlpha = 1.0 - smoothstep(-1.0, 0.0, dist);
                 clip(fillAlpha - 0.001);
 
                 float2 screenUV = IN.screenPos.xy / IN.screenPos.w;
@@ -120,10 +119,9 @@ Shader "FrostBlurUI/FrostBlurUI"
 
                 if (_FBorderEnabled > 0.5)
                 {
-                    float outerEdge   = 1.0 - smoothstep(-aa, 0.0, dist);
-                    float innerEdge   = 1.0 - smoothstep(-_FBorderThickness - aa, -_FBorderThickness, dist);
-                    float borderAlpha = saturate(outerEdge - innerEdge);
-                    result.rgb        = lerp(result.rgb, _FBorderColor.rgb, borderAlpha * _FBorderColor.a);
+                    float borderAlpha = smoothstep(-_FBorderThickness - 1.0, -_FBorderThickness, dist)
+                                      * (1.0 - smoothstep(-1.0, 0.0, dist));
+                    result.rgb = lerp(result.rgb, _FBorderColor.rgb, borderAlpha * _FBorderColor.a);
                 }
 
                 return result;
