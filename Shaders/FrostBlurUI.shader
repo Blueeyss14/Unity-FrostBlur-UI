@@ -17,8 +17,6 @@ Shader "FrostBlurUI/FrostBlurUI"
         [Range(0,512)] _CornerBR    ("Corner Bottom Right",  Float) = 24
         [Range(0,512)] _CornerBL    ("Corner Bottom Left",   Float) = 24
 
-        _RectSize ("Rect Size px", Vector) = (200,100,0,0)
-
         [HideInInspector] _MainTex          ("",2D)    = "white"{}
         [HideInInspector] _StencilComp      ("",Float) = 8
         [HideInInspector] _Stencil          ("",Float) = 0
@@ -79,7 +77,6 @@ Shader "FrostBlurUI/FrostBlurUI"
                 half4  _Color;
                 half4  _BorderColor;
                 float  _BorderThickness;
-                float4 _RectSize;
                 float  _CornerRadius;
                 float  _CornerTL;
                 float  _CornerTR;
@@ -119,16 +116,15 @@ Shader "FrostBlurUI/FrostBlurUI"
                 return OUT;
             }
 
-            float RoundedRectSDF(float2 uv, float2 size, float4 r)
+            float RoundedRectSDF(float2 p, float2 halfSize, float4 r)
             {
-                float2 p = (uv - 0.5) * size;
                 float radius;
                 if      (p.x <  0.0 && p.y >= 0.0) radius = r.x;
                 else if (p.x >= 0.0 && p.y >= 0.0) radius = r.y;
                 else if (p.x >= 0.0 && p.y <  0.0) radius = r.z;
                 else                                radius = r.w;
-                radius = min(radius, min(size.x, size.y) * 0.5);
-                float2 q = abs(p) - (size * 0.5 - radius);
+                radius = min(radius, min(halfSize.x, halfSize.y));
+                float2 q = abs(p) - halfSize + radius;
                 return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
             }
 
@@ -158,8 +154,14 @@ Shader "FrostBlurUI/FrostBlurUI"
                     bEnabled   = _FBorderEnabled;
                 #endif
 
-                float dist      = RoundedRectSDF(IN.uv, _RectSize.xy, radii);
-                float fillAlpha = 1.0 - smoothstep(-1.0, 0.0, dist);
+                float2 rectSize = abs(float2(1.0 / ddx(IN.uv.x), 1.0 / ddy(IN.uv.y)));
+
+                float2 p        = (IN.uv - 0.5) * rectSize;
+                float2 halfSize = rectSize * 0.5;
+                float  dist     = RoundedRectSDF(p, halfSize, radii);
+                float  aa       = fwidth(dist);
+
+                float fillAlpha = 1.0 - smoothstep(-aa, 0.0, dist);
                 clip(fillAlpha - 0.001);
 
                 float2 screenUV = IN.screenPos.xy / IN.screenPos.w;
@@ -170,9 +172,10 @@ Shader "FrostBlurUI/FrostBlurUI"
 
                 if (bEnabled > 0.5)
                 {
-                    float borderAlpha = smoothstep(-bThickness - 1.0, -bThickness, dist)
-                                      * (1.0 - smoothstep(-1.0, 0.0, dist));
-                    result.rgb = lerp(result.rgb, bColor.rgb, borderAlpha * bColor.a);
+                    float outerEdge   = 1.0 - smoothstep(-aa, 0.0, dist);
+                    float innerEdge   = 1.0 - smoothstep(-bThickness - aa, -bThickness, dist);
+                    float borderAlpha = saturate(outerEdge - innerEdge);
+                    result.rgb        = lerp(result.rgb, bColor.rgb, borderAlpha * bColor.a);
                 }
 
                 return result;

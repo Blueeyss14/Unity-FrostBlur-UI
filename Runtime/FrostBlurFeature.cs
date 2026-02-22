@@ -20,7 +20,7 @@ namespace FrostBlurUI
         [Serializable]
         public class BlurSettings
         {
-            [Range(1, 12)] public int iterations = 5;
+            [Range(1, 50)] public int iterations = 5;
             [Range(0f, 8f)] public float downsample = 2f;
             public bool enableMipMaps = true;
             [Range(1f, 8f)] public float scale = 1f;
