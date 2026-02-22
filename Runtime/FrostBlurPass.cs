@@ -19,18 +19,12 @@ namespace FrostBlurUI
         const string k_ShaderName = "Hidden/FrostBlurUI/BlurBlit";
 
         Material _mat;
-        FrostBlurFeature.BlurSettings     _blur;
-        FrostBlurFeature.AdvancedSettings _adv;
+        FrostBlurFeature.BlurSettings _blur;
         bool _ready;
 
-        const float DIR_H =  1f;
-        const float DIR_V = -1f;
-
-        public void Setup(FrostBlurFeature.BlurSettings blur, FrostBlurFeature.AdvancedSettings adv)
+        public void Setup(FrostBlurFeature.BlurSettings blur)
         {
             _blur = blur;
-            _adv  = adv;
-
             if (_mat == null)
             {
                 var sh = Shader.Find(k_ShaderName);
@@ -45,19 +39,11 @@ namespace FrostBlurUI
             _ready = true;
         }
 
-        int PassIndex() => _blur.blurType == FrostBlurFeature.BlurType.Gaussian ? 0 : 1;
-
-        float GetScale(Camera cam)
+        void GetBlurParams(out int iterations, out float downsample, out float scale)
         {
-            float s = _blur.scale;
-            switch (_adv.scaleBlurWith)
-            {
-                case FrostBlurFeature.ScaleMode.ScreenHeight:
-                    s *= cam.pixelHeight / (float)_adv.scaleReferenceSize; break;
-                case FrostBlurFeature.ScaleMode.ScreenWidth:
-                    s *= cam.pixelWidth  / (float)_adv.scaleReferenceSize; break;
-            }
-            return s / _blur.downsample;
+            iterations = _blur.iterations;
+            downsample = Mathf.Lerp(1f, 100f, _blur.strength / 100f);
+            scale      = _blur.scale;
         }
 
 #if UNITY_6000_0_OR_NEWER
@@ -65,7 +51,6 @@ namespace FrostBlurUI
         class BlitData
         {
             public Material mat;
-            public int passIndex;
             public float offset;
             public float scale;
             public TextureHandle src;
@@ -82,28 +67,28 @@ namespace FrostBlurUI
             var camData = frame.Get<UniversalCameraData>();
             if (res.isActiveTargetBackBuffer) return;
 
-            var cam   = camData.camera;
-            int w     = Mathf.Max(1, Mathf.RoundToInt(cam.pixelWidth  / _blur.downsample));
-            int h     = Mathf.Max(1, Mathf.RoundToInt(cam.pixelHeight / _blur.downsample));
-            float scale = GetScale(cam);
-            int   pass  = PassIndex();
+            GetBlurParams(out int iterations, out float downsample, out float scale);
+
+            var cam = camData.camera;
+            int w   = Mathf.Max(1, Mathf.RoundToInt(cam.pixelWidth  / downsample));
+            int h   = Mathf.Max(1, Mathf.RoundToInt(cam.pixelHeight / downsample));
 
             var desc = new RenderTextureDescriptor(w, h, RenderTextureFormat.Default, 0)
             {
-                useMipMap = _blur.enableMipMaps, autoGenerateMips = false
+                useMipMap = false, autoGenerateMips = false
             };
 
             TextureHandle ping = UniversalRenderer.CreateRenderGraphTexture(rg, desc, "_FB_Ping", false, FilterMode.Bilinear);
             TextureHandle pong = UniversalRenderer.CreateRenderGraphTexture(rg, desc, "_FB_Pong", false, FilterMode.Bilinear);
 
-            RGBlit(rg, res.activeColorTexture, ping, pass, DIR_H * scale, scale, "FB_Init");
+            RGBlit(rg, res.activeColorTexture, ping, scale, scale, "FB_Init");
 
             bool srcPing = true;
-            for (int i = 0; i < _blur.iterations; i++)
+            for (int i = 0; i < iterations; i++)
             {
-                RGBlit(rg, srcPing ? ping : pong, srcPing ? pong : ping, pass, DIR_H * scale * (i + 1), scale, $"FB_H{i}");
+                RGBlit(rg, srcPing ? ping : pong, srcPing ? pong : ping,  scale, scale, $"FB_H{i}");
                 srcPing = !srcPing;
-                RGBlit(rg, srcPing ? ping : pong, srcPing ? pong : ping, pass, DIR_V * scale * (i + 1), scale, $"FB_V{i}");
+                RGBlit(rg, srcPing ? ping : pong, srcPing ? pong : ping, -scale, scale, $"FB_V{i}");
                 srcPing = !srcPing;
             }
 
@@ -119,16 +104,15 @@ namespace FrostBlurUI
             }
         }
 
-        void RGBlit(RenderGraph rg, TextureHandle src, TextureHandle dst, int pass, float offset, float scale, string name)
+        void RGBlit(RenderGraph rg, TextureHandle src, TextureHandle dst, float offset, float scale, string name)
         {
             using (var builder = rg.AddUnsafePass<BlitData>(name, out var d))
             {
-                d.mat       = _mat;
-                d.passIndex = pass;
-                d.offset    = offset;
-                d.scale     = scale;
-                d.src       = src;
-                d.dst       = dst;
+                d.mat    = _mat;
+                d.offset = offset;
+                d.scale  = scale;
+                d.src    = src;
+                d.dst    = dst;
                 builder.UseTexture(src, AccessFlags.Read);
                 builder.UseTexture(dst, AccessFlags.Write);
                 builder.AllowPassCulling(false);
@@ -137,7 +121,7 @@ namespace FrostBlurUI
                     data.mat.SetFloat(s_Offset, data.offset);
                     data.mat.SetFloat(s_Scale,  data.scale);
                     ctx.cmd.SetRenderTarget(data.dst);
-                    Blitter.BlitTexture(ctx.cmd, data.src, new Vector4(1, 1, 0, 0), data.mat, data.passIndex);
+                    Blitter.BlitTexture(ctx.cmd, data.src, new Vector4(1, 1, 0, 0), data.mat, 0);
                 });
             }
         }
@@ -155,15 +139,15 @@ namespace FrostBlurUI
         {
             if (!_ready) return;
 
-            var cam     = renderingData.cameraData.camera;
-            int w       = Mathf.Max(1, Mathf.RoundToInt(cam.pixelWidth  / _blur.downsample));
-            int h       = Mathf.Max(1, Mathf.RoundToInt(cam.pixelHeight / _blur.downsample));
-            float scale = GetScale(cam);
-            int   pass  = PassIndex();
+            GetBlurParams(out int iterations, out float downsample, out float scale);
+
+            var cam = renderingData.cameraData.camera;
+            int w   = Mathf.Max(1, Mathf.RoundToInt(cam.pixelWidth  / downsample));
+            int h   = Mathf.Max(1, Mathf.RoundToInt(cam.pixelHeight / downsample));
 
             var desc = new RenderTextureDescriptor(w, h, RenderTextureFormat.Default, 0)
             {
-                useMipMap = _blur.enableMipMaps, autoGenerateMips = false
+                useMipMap = false, autoGenerateMips = false
             };
 
             var cmd = CommandBufferPool.Get("FrostBlurPass");
@@ -172,20 +156,20 @@ namespace FrostBlurUI
             cmd.Blit(_camColor, s_TempA);
 
             bool srcA = true;
-            for (int i = 0; i < _blur.iterations; i++)
+            for (int i = 0; i < iterations; i++)
             {
                 int src = srcA ? s_TempA : s_TempB;
                 int dst = srcA ? s_TempB : s_TempA;
-                _mat.SetFloat(s_Offset, DIR_H * scale * (i + 1));
-                _mat.SetFloat(s_Scale,  scale);
-                cmd.Blit(src, dst, _mat, pass);
+                _mat.SetFloat(s_Offset,  scale);
+                _mat.SetFloat(s_Scale,   scale);
+                cmd.Blit(src, dst, _mat, 0);
                 srcA = !srcA;
 
                 src = srcA ? s_TempA : s_TempB;
                 dst = srcA ? s_TempB : s_TempA;
-                _mat.SetFloat(s_Offset, DIR_V * scale * (i + 1));
-                _mat.SetFloat(s_Scale,  scale);
-                cmd.Blit(src, dst, _mat, pass);
+                _mat.SetFloat(s_Offset, -scale);
+                _mat.SetFloat(s_Scale,   scale);
+                cmd.Blit(src, dst, _mat, 0);
                 srcA = !srcA;
             }
 

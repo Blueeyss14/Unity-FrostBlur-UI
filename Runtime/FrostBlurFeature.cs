@@ -7,8 +7,6 @@ namespace FrostBlurUI
     [DisallowMultipleRendererFeature("Frost Blur Feature")]
     public class FrostBlurFeature : ScriptableRendererFeature
     {
-        public enum BlurType { Gaussian, Fast }
-        public enum ScaleMode { ScreenHeight, ScreenWidth, None }
         public enum CornerMode { Linked, PerCorner }
         public enum InjectionPoint
         {
@@ -20,12 +18,9 @@ namespace FrostBlurUI
         [Serializable]
         public class BlurSettings
         {
-            [Range(1, 50)] public int iterations = 5;
-            [Range(0f, 8f)] public float downsample = 2f;
-            public bool enableMipMaps = true;
-            [Range(1f, 8f)] public float scale = 1f;
-            [Range(0f, 4f)] public float offset = 1f;
-            public BlurType blurType = BlurType.Gaussian;
+            [Range(0f, 100f)] public float strength   = 50f;
+            public int   iterations  = 5;
+            public float scale       = 2f;
         }
 
         [Serializable]
@@ -45,16 +40,13 @@ namespace FrostBlurUI
         [Serializable]
         public class AdvancedSettings
         {
-            public ScaleMode scaleBlurWith = ScaleMode.ScreenHeight;
-            public int scaleReferenceSize = 1080;
             public InjectionPoint injectionPoint = InjectionPoint.AfterRenderingPostProcessing;
         }
 
-        public BlurSettings blurSettings = new BlurSettings();
-        public BorderSettings borderSettings = new BorderSettings();
+        public BlurSettings     blurSettings     = new BlurSettings();
+        public BorderSettings   borderSettings   = new BorderSettings();
         public AdvancedSettings advancedSettings = new AdvancedSettings();
 
-        static readonly int s_BlurTex         = Shader.PropertyToID("_FrostBlurTexture");
         static readonly int s_BorderColor     = Shader.PropertyToID("_FBorderColor");
         static readonly int s_BorderThickness = Shader.PropertyToID("_FBorderThickness");
         static readonly int s_BorderEnabled   = Shader.PropertyToID("_FBorderEnabled");
@@ -74,7 +66,7 @@ namespace FrostBlurUI
         {
             if (renderingData.cameraData.cameraType == CameraType.Preview) return;
             PushGlobals();
-            _pass.Setup(blurSettings, advancedSettings);
+            _pass.Setup(blurSettings);
             renderer.EnqueuePass(_pass);
         }
 
@@ -94,8 +86,8 @@ namespace FrostBlurUI
         {
             return ip switch
             {
-                InjectionPoint.AfterRenderingOpaques       => RenderPassEvent.AfterRenderingOpaques,
-                InjectionPoint.BeforeRenderingTransparents => RenderPassEvent.BeforeRenderingTransparents,
+                InjectionPoint.AfterRenderingOpaques        => RenderPassEvent.AfterRenderingOpaques,
+                InjectionPoint.BeforeRenderingTransparents  => RenderPassEvent.BeforeRenderingTransparents,
                 InjectionPoint.AfterRenderingPostProcessing => RenderPassEvent.AfterRenderingPostProcessing,
                 _ => RenderPassEvent.AfterRenderingPostProcessing
             };
