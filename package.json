@@ -1,0 +1,14 @@
+{
+  "name": "com.blueeyss14.frostblurui",
+  "version": "1.0.0",
+  "displayName": "Frost Blur UI",
+  "description": "Frost Blur UI for Unity",
+  "unity": "2022.3",
+  "author": {
+    "name": "bluee.art14__",
+    "url": "https://github.com/Blueeyss14"
+  },
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "14.0.0"
+  }
+}
