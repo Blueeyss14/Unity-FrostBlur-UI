@@ -5,6 +5,7 @@ namespace FrostBlurUI
 {
     [RequireComponent(typeof(Graphic))]
     [AddComponentMenu("UI/Frost Blur/Frost Blur Element")]
+    [ExecuteAlways]
     public class FrostBlurElement : MonoBehaviour
     {
         static readonly int s_RectSizeID = Shader.PropertyToID("_RectSize");
@@ -22,10 +23,17 @@ namespace FrostBlurUI
 
         void OnEnable()
         {
-            if (_graphic.material != null)
+            _graphic = GetComponent<Graphic>();
+            _rect    = GetComponent<RectTransform>();
+
+            if (_graphic.material != null && !_graphic.material.name.Contains("(Instance)"))
             {
                 _matInstance      = new Material(_graphic.material);
                 _graphic.material = _matInstance;
+            }
+            else
+            {
+                _matInstance = _graphic.material;
             }
             SyncSize();
         }
@@ -34,7 +42,7 @@ namespace FrostBlurUI
         {
             if (_matInstance != null)
             {
-                Destroy(_matInstance);
+                DestroyImmediate(_matInstance);
                 _matInstance = null;
             }
         }
@@ -44,14 +52,23 @@ namespace FrostBlurUI
             if (_rect.rect.size != _lastSize) SyncSize();
         }
 
-#if UNITY_EDITOR
         void OnValidate()                      => SyncSize();
         void OnRectTransformDimensionsChange() => SyncSize();
-#endif
 
         void SyncSize()
         {
-            if (_matInstance == null || _rect == null) return;
+            if (_rect == null) _rect = GetComponent<RectTransform>();
+            if (_graphic == null) _graphic = GetComponent<Graphic>();
+            if (_graphic == null || _rect == null) return;
+
+            if (_matInstance == null && _graphic.material != null)
+            {
+                _matInstance      = new Material(_graphic.material);
+                _graphic.material = _matInstance;
+            }
+
+            if (_matInstance == null) return;
+
             _lastSize = _rect.rect.size;
             _matInstance.SetVector(s_RectSizeID, new Vector4(_lastSize.x, _lastSize.y, 0, 0));
         }
