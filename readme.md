@@ -12,7 +12,7 @@
 <p align="center">
   <img src="images/material_setting.png" width="100%" />
 </p>
-<p>- add FrostBlurUI to Renderer Feauture/p>
+<p>- add FrostBlurUI to Renderer Feauture</p>
 <p align="center">
   <img src="images/setting.png" width="100%" />
 </p>
